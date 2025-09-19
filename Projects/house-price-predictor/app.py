@@ -1,37 +1,73 @@
-from flask import Flask, render_template, request
-import pickle
+from flask import Flask, render_template, request, jsonify
+import joblib
 import numpy as np
+import pandas as pd
 
+# --- Initialize Flask App ---
 app = Flask(__name__)
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
+
+# --- Load Pre-trained Pipeline ---
+model = joblib.load("model_pipeline.pkl")
+
+
+# ------------------------------
+# ROUTES
+# ------------------------------
+
+@app.route("/")
+def index():
+    """Landing page (index.html)"""
+    return render_template("index.html")
+
 
 @app.route("/home")
 def home_page():
+    """Alternative home page (home.html)"""
     return render_template("home.html")
 
-@app.route("/")
-def home():
-    return render_template("index.html")
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    area = float(request.form["area"])
-    bedrooms = int(request.form["bedrooms"])
-    bathrooms = int(request.form["bathrooms"])
-    location = request.form["location"]
+    """
+    Handle form submission for price prediction.
+    Works for both normal form POST and AJAX requests.
+    """
+    try:
 
-    loc_urban = 1 if location == "Urban" else 0
-    loc_suburban = 1 if location == "Suburban" else 0
+        # --- Collect Form Data ---
+        area = float(request.form.get("area", 0))
+        bedrooms = int(request.form.get("bedrooms", 0))
+        bathrooms = int(request.form.get("bathrooms", 0))
+        location = request.form.get("location", "Rural")
 
-    features = np.array([[area, bedrooms, bathrooms, loc_suburban, loc_urban]])
-    prediction = model.predict(features)[0]
-    prediction_text = f"Predicted Price: ₹{round(prediction, 2)}"
+        # --- Create DataFrame for prediction ---
+        features = pd.DataFrame({
+            "area": [area],
+            "bedrooms": [bedrooms],
+            "bathrooms": [bathrooms],
+            "location": [location]
+        })
 
-    # If AJAX request, return snippet
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or True:
-        return f'<div id="prediction">{prediction_text}</div>'
-    return render_template("index.html", prediction_text=prediction_text)
+        # --- Make prediction ---
+        prediction = model.predict(features)[0]
+        prediction_text = f"Predicted Price: ₹{round(prediction, 2):,}"
 
+        # --- AJAX Request Handling ---
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"prediction": prediction_text})
+        # --- Normal form submit ---
+        return render_template("index.html", prediction_text=prediction_text)
+
+    except Exception as e:
+        # Error handling (useful for debugging/student learning)
+        error_msg = f"Error: {str(e)}"
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"prediction": error_msg})
+        return render_template("index.html", prediction_text=error_msg)
+
+
+# ------------------------------
+# MAIN
+# ------------------------------
 if __name__ == "__main__":
     app.run(debug=True)

@@ -380,19 +380,13 @@
             url: '/predict',
             type: 'POST',
             data: { area, bedrooms, bathrooms, location },
+            dataType: 'json',
             success: function(data) {
-                // Try to extract price from response (handle both HTML and plain text)
-                let price = null;
-                // If backend returns only price (recommended for AJAX)
-                if (typeof data === 'string' && !data.includes('<')) {
-                    price = data.replace(/[^\d.]/g, '');
-                } else {
-                    // Try to extract from HTML (legacy fallback)
-                    const match = /([\d,]+(?:\.\d+)?)/.exec($(data).text());
-                    if (match) price = match[1].replace(/,/g, '');
-                }
-                if (price) {
-                    const priceNum = parseFloat(price);
+                // Use the prediction value from JSON response
+                let predictionText = data.prediction || 'N/A';
+                let priceMatch = predictionText.match(/([\d,.]+)/);
+                let priceNum = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null;
+                if (priceNum) {
                     $('#prediction').html('Predicted Price: <span id="priceVal">₹' + priceNum.toLocaleString() + '</span>');
                     if(priceNum < 200000) $('#prediction').attr('class', 'result low');
                     else if(priceNum < 400000) $('#prediction').attr('class', 'result medium');
